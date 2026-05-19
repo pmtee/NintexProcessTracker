@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ProcessTracker — Nintex Style</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f5f4f0;--s1:#ffffff;--s2:#f0efe9;
+  --ink:#0f0e0b;--sub:#5a5850;--muted:#9a9890;
+  --accent:#1a1a2e;--neon:#00c896;--warn:#f59e0b;--danger:#ef4444;
+  --border:#dddbd4;--shadow:0 2px 20px rgba(0,0,0,.06);
+  --fn:'DM Sans',sans-serif;--fd:'Syne',sans-serif;--fm:'DM Mono',monospace;
+}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--ink);font-family:var(--fn);min-height:100vh;}
+
+/* ── TOP BAR ── */
+.topbar{background:var(--accent);color:#fff;padding:0 32px;height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;}
+.topbar-brand{font-family:var(--fd);font-size:18px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:10px;}
+.brand-dot{width:8px;height:8px;background:var(--neon);border-radius:50%;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.4);}}
+.topbar-meta{font-family:var(--fm);font-size:11px;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:16px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--neon);display:inline-block;margin-right:6px;}
+
+/* ── LAYOUT ── */
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 56px);}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--s1);border-right:1px solid var(--border);padding:28px 20px;display:flex;flex-direction:column;gap:8px;}
+.sidebar-label{font-family:var(--fm);font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:12px 12px 6px;}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;
+  font-size:13px;color:var(--sub);transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:var(--fn);}
+.nav-btn:hover{background:var(--s2);color:var(--ink);}
+.nav-btn.active{background:var(--accent);color:#fff;}
+.nav-btn .ni{font-size:16px;flex-shrink:0;}
+.stats-mini{margin-top:auto;padding:16px;background:var(--s2);border-radius:10px;border:1px solid var(--border);}
+.sm-label{font-family:var(--fm);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+.sm-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.sm-key{font-size:12px;color:var(--sub);}
+.sm-val{font-family:var(--fm);font-size:13px;font-weight:500;color:var(--ink);}
+
+/* ── MAIN ── */
+.main{padding:32px;overflow-y:auto;}
+.page{display:none;animation:fi .25s ease;}
+.page.on{display:block;}
+@keyframes fi{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── PAGE HEADERS ── */
+.pg-title{font-family:var(--fd);font-size:28px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;}
+.pg-sub{font-size:13px;color:var(--muted);font-family:var(--fm);margin-bottom:28px;}
+
+/* ── STAT CARDS ── */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+.stat-card{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:20px;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.stat-card.total::before{background:var(--accent);}
+.stat-card.pending::before{background:var(--warn);}
+.stat-card.active::before{background:var(--neon);}
+.stat-card.done::before{background:#6366f1;}
+.stat-n{font-family:var(--fd);font-size:38px;font-weight:800;line-height:1;color:var(--ink);}
+.stat-l{font-family:var(--fm);font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:1px;text-transform:uppercase;}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+.table-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.th-title{font-family:var(--fd);font-size:15px;font-weight:700;}
+.th-actions{display:flex;gap:8px;}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:11px 20px;font-family:var(--fm);font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;text-align:left;background:var(--s2);border-bottom:1px solid var(--border);}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--s2);}
+tbody td{padding:13px 20px;font-size:13px;color:var(--ink);vertical-align:middle;}
+.td-id{font-family:var(--fm);color:var(--muted);font-size:12px;}
+.td-name{font-weight:500;}
+.td-assigned{color:var(--sub);font-size:12px;font-family:var(--fm);}
+.td-date{color:var(--muted);font-size:11px;font-family:var(--fm);}
+.td-actions{display:flex;gap:6px;}
+
+/* ── STATUS BADGE ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-family:var(--fm);font-size:11px;font-weight:500;}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;}
+.badge.PENDING{background:rgba(245,158,11,.1);color:#b45309;}.badge.PENDING::before{background:#f59e0b;}
+.badge.IN_PROGRESS{background:rgba(0,200,150,.1);color:#047857;}.badge.IN_PROGRESS::before{background:var(--neon);}
+.badge.COMPLETED{background:rgba(99,102,241,.1);color:#4338ca;}.badge.COMPLETED::before{background:#6366f1;}
+.badge.FAILED{background:rgba(239,68,68,.1);color:#b91c1c;}.badge.FAILED::before{background:var(--danger);}
+
+/* ── BUTTONS ── */
+.btn{padding:9px 18px;font-size:13px;border-radius:8px;cursor:pointer;
+  transition:all .2s;font-family:var(--fn);font-weight:500;border:none;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#2d2d4e;transform:translateY(-1px);box-shadow:0 4px 14px rgba(26,26,46,.3);}
+.btn-success{background:var(--neon);color:#fff;}
+.btn-success:hover{filter:brightness(1.1);}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--sub);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+.btn-danger{background:transparent;border:1.5px solid #fca5a5;color:var(--danger);}
+.btn-danger:hover{background:rgba(239,68,68,.08);}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:6px;}
+.btn-icon{padding:6px;border-radius:6px;font-size:14px;}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);
+  z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-overlay.on{display:flex;}
+.modal{background:var(--s1);border-radius:14px;padding:28px;width:100%;max-width:480px;
+  box-shadow:0 20px 60px rgba(0,0,0,.2);animation:mfi .2s ease;}
+@keyframes mfi{from{opacity:0;transform:scale(.96);}to{opacity:1;transform:scale(1);}}
+.modal-title{font-family:var(--fd);font-size:20px;font-weight:800;margin-bottom:4px;}
+.modal-sub{font-size:13px;color:var(--muted);margin-bottom:22px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-family:var(--fm);font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.field input,.field select,.field textarea{width:100%;padding:10px 14px;background:var(--bg);
+  border:1.5px solid var(--border);border-radius:8px;font-family:var(--fn);font-size:14px;
+  color:var(--ink);outline:none;transition:border-color .15s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--accent);color:#fff;
+  padding:12px 20px;border-radius:10px;font-size:13px;font-family:var(--fm);
+  box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:300;transform:translateY(80px);
+  transition:transform .3s ease;display:flex;align-items:center;gap:8px;}
+.toast.on{transform:translateY(0);}
+.toast.success{background:#059669;}
+.toast.error{background:var(--danger);}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:60px 20px;color:var(--muted);}
+.empty-icon{font-size:48px;margin-bottom:12px;}
+.empty-msg{font-family:var(--fd);font-size:16px;color:var(--sub);margin-bottom:6px;}
+.empty-sub{font-size:13px;font-family:var(--fm);}
+
+/* ── SEARCH BAR ── */
+.search-bar{display:flex;gap:10px;margin-bottom:16px;align-items:center;}
+.search-input{flex:1;padding:9px 14px;background:var(--s1);border:1.5px solid var(--border);
+  border-radius:8px;font-family:var(--fn);font-size:13px;color:var(--ink);outline:none;}
+.search-input:focus{border-color:var(--accent);}
+.filter-select{padding:9px 14px;background:var(--s1);border:1.5px solid var(--border);
+  border-radius:8px;font-family:var(--fm);font-size:12px;color:var(--sub);outline:none;cursor:pointer;}
+
+/* ── ACTIVITY FEED ── */
+.activity-list{display:flex;flex-direction:column;gap:10px;}
+.activity-item{background:var(--s1);border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;display:flex;align-items:flex-start;gap:12px;}
+.ai-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:14px;flex-shrink:0;}
+.ai-icon.create{background:rgba(0,200,150,.12);}
+.ai-icon.update{background:rgba(99,102,241,.12);}
+.ai-icon.delete{background:rgba(239,68,68,.12);}
+.ai-body{flex:1;}
+.ai-msg{font-size:13px;color:var(--ink);}
+.ai-time{font-family:var(--fm);font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* LOADER */
+.loader{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-dot"></div>
+    ProcessTracker
+  </div>
+  <div class="topbar-meta">
+    <span><span class="status-dot"></span>API Connected</span>
+    <span id="api-url">localhost:5033</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-label">Navigation</div>
+    <button class="nav-btn active" onclick="showPage('dashboard')"><span class="ni">📊</span>Dashboard</button>
+    <button class="nav-btn" onclick="showPage('processes')"><span class="ni">⚙️</span>All Processes</button>
+    <button class="nav-btn" onclick="showPage('create')"><span class="ni">＋</span>New Process</button>
+    <button class="nav-btn" onclick="showPage('about')"><span class="ni">ℹ️</span>About</button>
+
+    <div class="stats-mini" id="sidebar-stats">
+      <div class="sm-label">Live Stats</div>
+      <div class="sm-row"><span class="sm-key">Total</span><span class="sm-val" id="ss-total">—</span></div>
+      <div class="sm-row"><span class="sm-key">Pending</span><span class="sm-val" id="ss-pending">—</span></div>
+      <div class="sm-row"><span class="sm-key">In Progress</span><span class="sm-val" id="ss-active">—</span></div>
+      <div class="sm-row"><span class="sm-key">Completed</span><span class="sm-val" id="ss-done">—</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page on">
+      <div class="pg-title">Dashboard</div>
+      <div class="pg-sub">Real-time overview of all business processes</div>
+
+      <div class="stat-row">
+        <div class="stat-card total"><div class="stat-n" id="st-total">0</div><div class="stat-l">Total Processes</div></div>
+        <div class="stat-card pending"><div class="stat-n" id="st-pending">0</div><div class="stat-l">Pending</div></div>
+        <div class="stat-card active"><div class="stat-n" id="st-active">0</div><div class="stat-l">In Progress</div></div>
+        <div class="stat-card done"><div class="stat-n" id="st-done">0</div><div class="stat-l">Completed</div></div>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head">
+          <span class="th-title">Recent Processes</span>
+          <div class="th-actions">
+            <button class="btn btn-primary btn-sm" onclick="showPage('create')">+ New Process</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Assigned To</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="dashboard-table"><tr><td colspan="6"><div class="empty"><div class="empty-icon">⏳</div><div class="empty-msg">Loading...</div></div></td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <div class="table-head"><span class="th-title">Activity Feed</span></div>
+        <div style="padding:16px;" id="activity-feed">
+          <div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">No activity yet</div><div class="empty-sub">Create a process to get started</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALL PROCESSES -->
+    <div id="page-processes" class="page">
+      <div class="pg-title">All Processes</div>
+      <div class="pg-sub">Manage and track every business process</div>
+
+      <div class="search-bar">
+        <input class="search-input" id="search-input" placeholder="Search by name or assignee..." oninput="filterProcesses()">
+        <select class="filter-select" id="filter-status" onchange="filterProcesses()">
+          <option value="">All Statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showPage('create')">+ New</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Assigned To</th><th>Created</th><th>Completed</th><th>Actions</th></tr></thead>
+          <tbody id="processes-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CREATE PROCESS -->
+    <div id="page-create" class="page">
+      <div class="pg-title">New Process</div>
+      <div class="pg-sub">Create a new business process to track</div>
+
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:540px;">
+        <div class="field">
+          <label>Process Name</label>
+          <input id="create-name" type="text" placeholder="e.g. Server Onboarding, Network Configuration">
+        </div>
+        <div class="field">
+          <label>Assigned To</label>
+          <input id="create-assigned" type="text" placeholder="e.g. Phetho Tlaka, Daniel">
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn btn-primary" onclick="createProcess()" id="create-btn">Create Process</button>
+          <button class="btn btn-ghost" onclick="showPage('processes')">Cancel</button>
+        </div>
+        <div id="create-error" style="color:var(--danger);font-size:12px;margin-top:10px;font-family:var(--fm);display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ABOUT -->
+    <div id="page-about" class="page">
+      <div class="pg-title">About</div>
+      <div class="pg-sub">ProcessTracker — built for the Nintex Graduate Engineer application</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:800px;">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:22px;">
+          <div style="font-family:var(--fd);font-size:16px;font-weight:700;margin-bottom:12px;">Tech Stack</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--sub);">
+            <span>🔷 C# .NET 8 — REST API</span>
+            <span>🗄️ SQLite + Entity Framework Core</span>
+            <span>🏗️ Repository Pattern + Interfaces</span>
+            <span>✅ xUnit — 6 passing tests</span>
+            <span>📖 Swagger — auto docs</span>
+            <span>🎨 Vanilla HTML/CSS/JS UI</span>
+          </div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:22px;">
+          <div style="font-family:var(--fd);font-size:16px;font-weight:700;margin-bottom:12px;">Architecture</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--sub);">
+            <span>📦 Models.cs — BusinessProcess</span>
+            <span>🔌 IProcessRepository — Interface</span>
+            <span>🏭 ProcessRepository — Implementation</span>
+            <span>🗃️ AppDbContext — EF Core bridge</span>
+            <span>⚡ Program.cs — Minimal API endpoints</span>
+            <span>🧪 ProcessTests.cs — Unit tests</span>
+          </div>
+        </div>
+        <div style="background:var(--accent);border-radius:12px;padding:22px;grid-column:span 2;">
+          <div style="font-family:var(--fd);font-size:16px;font-weight:700;margin-bottom:8px;color:#fff;">Built by Phetho Mogotle Tlaka</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.7);">Graduate IT Intern at Datacentrix · BSc Computer Sciences, IIE Varsity College 2024 · 10 Industry Certifications</div>
+          <div style="margin-top:12px;display:flex;gap:10px;">
+            <a href="https://github.com/pmtee" target="_blank" class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3);font-size:12px;">GitHub →</a>
+            <a href="https://linkedin.com/in/phetho-tlaka" target="_blank" class="btn btn-ghost" style="color:#fff;border-color:rgba(255,255,255,.3);font-size:12px;">LinkedIn →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Update Process</div>
+    <div class="modal-sub">Change the status or reassign this process</div>
+    <input type="hidden" id="edit-id">
+    <div class="field"><label>Process Name</label><input id="edit-name" type="text" disabled style="opacity:.6;cursor:not-allowed;"></div>
+    <div class="field">
+      <label>Status</label>
+      <select id="edit-status">
+        <option value="PENDING">Pending</option>
+        <option value="IN_PROGRESS">In Progress</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="FAILED">Failed</option>
+      </select>
+    </div>
+    <div class="field"><label>Assigned To</label><input id="edit-assigned" type="text"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="updateProcess()" id="edit-btn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:5033';
+let allProcesses = [];
+let activity = [];
+
+// ── NAVIGATION ──────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('on');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    if(b.textContent.toLowerCase().includes(id === 'dashboard' ? 'dash' : id === 'processes' ? 'all' : id === 'create' ? 'new' : 'about'))
+      b.classList.add('active');
+  });
+  if(id === 'processes') renderProcessesTable();
+}
+
+// ── FETCH ALL PROCESSES ──────────────────────────────────
+async function loadProcesses() {
+  try {
+    const r = await fetch(`${API}/processes`);
+    allProcesses = await r.json();
+    updateStats();
+    renderDashboardTable();
+    renderProcessesTable();
+  } catch(e) {
+    showToast('Cannot connect to API — is dotnet run active?', 'error');
+  }
+}
+
+// ── STATS ────────────────────────────────────────────────
+function updateStats() {
+  const total    = allProcesses.length;
+  const pending  = allProcesses.filter(p => p.status === 'PENDING').length;
+  const active   = allProcesses.filter(p => p.status === 'IN_PROGRESS').length;
+  const done     = allProcesses.filter(p => p.status === 'COMPLETED').length;
+
+  setText('st-total', total);
+  setText('st-pending', pending);
+  setText('st-active', active);
+  setText('st-done', done);
+  setText('ss-total', total);
+  setText('ss-pending', pending);
+  setText('ss-active', active);
+  setText('ss-done', done);
+}
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if(el) el.textContent = val;
+}
+
+// ── RENDER DASHBOARD TABLE ───────────────────────────────
+function renderDashboardTable() {
+  const tbody = document.getElementById('dashboard-table');
+  if(!tbody) return;
+  const recent = [...allProcesses].reverse().slice(0, 5);
+  if(!recent.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📭</div><div class="empty-msg">No processes yet</div><div class="empty-sub">Click + New Process to start</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = recent.map(p => renderRow(p)).join('');
+}
+
+// ── RENDER FULL TABLE ────────────────────────────────────
+function renderProcessesTable() {
+  const q      = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const status = document.getElementById('filter-status')?.value || '';
+  const tbody  = document.getElementById('processes-table');
+  if(!tbody) return;
+
+  let list = [...allProcesses].reverse();
+  if(q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.assignedTo.toLowerCase().includes(q));
+  if(status) list = list.filter(p => p.status === status);
+
+  if(!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-msg">No results</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.map(p => renderRow(p, true)).join('');
+}
+
+function filterProcesses() { renderProcessesTable(); }
+
+function renderRow(p, showCompleted = false) {
+  const created   = new Date(p.createdAt).toLocaleDateString('en-ZA', {day:'2-digit',month:'short',year:'numeric'});
+  const completed = p.completedAt ? new Date(p.completedAt).toLocaleDateString('en-ZA', {day:'2-digit',month:'short'}) : '—';
+  const extra = showCompleted ? `<td class="td-date">${completed}</td>` : '';
+  return `<tr>
+    <td class="td-id">#${p.id}</td>
+    <td class="td-name">${p.name}</td>
+    <td><span class="badge ${p.status}">${p.status.replace('_',' ')}</span></td>
+    <td class="td-assigned">${p.assignedTo}</td>
+    <td class="td-date">${created}</td>
+    ${extra}
+    <td class="td-actions">
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="openEdit(${p.id})" title="Edit">✏️</button>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="deleteProcess(${p.id})" title="Delete">🗑️</button>
+    </td>
+  </tr>`;
+}
+
+// ── CREATE ───────────────────────────────────────────────
+async function createProcess() {
+  const name     = document.getElementById('create-name').value.trim();
+  const assigned = document.getElementById('create-assigned').value.trim();
+  const errEl    = document.getElementById('create-error');
+  const btn      = document.getElementById('create-btn');
+
+  errEl.style.display = 'none';
+  if(!name) { errEl.textContent = 'Process name is required.'; errEl.style.display = 'block'; return; }
+  if(!assigned) { errEl.textContent = 'Assigned To is required.'; errEl.style.display = 'block'; return; }
+
+  btn.innerHTML = '<span class="loader"></span> Creating...';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`${API}/processes`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, assignedTo: assigned })
+    });
+    if(r.ok) {
+      const p = await r.json();
+      addActivity('create', `Created process #${p.id}: ${p.name}`);
+      showToast(`✓ Process "${p.name}" created`, 'success');
+      document.getElementById('create-name').value = '';
+      document.getElementById('create-assigned').value = '';
+      await loadProcesses();
+      showPage('processes');
+    }
+  } catch(e) {
+    errEl.textContent = 'Failed to connect to API.';
+    errEl.style.display = 'block';
+  }
+
+  btn.innerHTML = 'Create Process';
+  btn.disabled = false;
+}
+
+// ── EDIT / UPDATE ────────────────────────────────────────
+function openEdit(id) {
+  const p = allProcesses.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('edit-name').value = p.name;
+  document.getElementById('edit-status').value = p.status;
+  document.getElementById('edit-assigned').value = p.assignedTo;
+  document.getElementById('edit-modal').classList.add('on');
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('on');
+}
+
+async function updateProcess() {
+  const id       = document.getElementById('edit-id').value;
+  const status   = document.getElementById('edit-status').value;
+  const assigned = document.getElementById('edit-assigned').value.trim();
+  const name     = document.getElementById('edit-name').value;
+  const btn      = document.getElementById('edit-btn');
+
+  btn.innerHTML = '<span class="loader"></span> Saving...';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`${API}/processes/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, status, assignedTo: assigned })
+    });
+    if(r.ok) {
+      addActivity('update', `Updated process #${id} → ${status}`);
+      showToast(`✓ Process #${id} updated to ${status}`, 'success');
+      closeModal();
+      await loadProcesses();
+    }
+  } catch(e) {
+    showToast('Failed to update', 'error');
+  }
+
+  btn.innerHTML = 'Save Changes';
+  btn.disabled = false;
+}
+
+// ── DELETE ───────────────────────────────────────────────
+async function deleteProcess(id) {
+  if(!confirm(`Delete process #${id}? This cannot be undone.`)) return;
+  try {
+    const r = await fetch(`${API}/processes/${id}`, { method: 'DELETE' });
+    if(r.ok) {
+      addActivity('delete', `Deleted process #${id}`);
+      showToast(`Process #${id} deleted`, 'error');
+      await loadProcesses();
+    }
+  } catch(e) {
+    showToast('Failed to delete', 'error');
+  }
+}
+
+// ── ACTIVITY FEED ────────────────────────────────────────
+function addActivity(type, msg) {
+  const icons = { create:'➕', update:'✏️', delete:'🗑️' };
+  const now = new Date().toLocaleTimeString('en-ZA');
+  activity.unshift({ type, msg, time: now });
+  if(activity.length > 10) activity.pop();
+  renderActivity();
+}
+
+function renderActivity() {
+  const feed = document.getElementById('activity-feed');
+  if(!feed || !activity.length) return;
+  feed.innerHTML = `<div class="activity-list">${
+    activity.map(a => `<div class="activity-item">
+      <div class="ai-icon ${a.type}">${{create:'➕',update:'✏️',delete:'🗑️'}[a.type]}</div>
+      <div class="ai-body"><div class="ai-msg">${a.msg}</div><div class="ai-time">${a.time}</div></div>
+    </div>`).join('')
+  }</div>`;
+}
+
+// ── TOAST ────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} on`;
+  setTimeout(() => t.classList.remove('on'), 3000);
+}
+
+// ── CLOSE MODAL ON OVERLAY CLICK ────────────────────────
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+  if(e.target === this) closeModal();
+});
+
+// ── INIT ────────────────────────────────────────────────
+loadProcesses();
+setInterval(loadProcesses, 10000); // I refresh every 10 seconds automatically
+</script>
+</body>
+</html>
