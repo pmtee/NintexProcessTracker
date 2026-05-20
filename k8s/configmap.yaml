@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: processtracker-config
+  namespace: processtracker
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"
+  AWS__Region: "af-south-1"
+  AWS__BucketName: "process-tracker-exports"

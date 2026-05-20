@@ -1,7 +1,21 @@
+# Build outputs
 bin/
 obj/
+
+# Database files
 *.db
 *.db-shm
 *.db-wal
+
+# IDE
 .vs/
 *.user
+.idea/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

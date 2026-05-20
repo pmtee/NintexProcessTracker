@@ -1,112 +1,190 @@
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
 using ProcessTracker;
+using Xunit;
 
-// I create a test class that tests all my API endpoints
-// xUnit automatically discovers and runs all methods marked with [Fact]
+namespace ProcessTracker.Tests;
+
 public class ProcessTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
-    // I set up an in-memory test database so my real database is never touched
     public ProcessTests(WebApplicationFactory<Program> factory)
     {
-        _client = factory.WithWebHostBuilder(builder =>
+        _factory = factory;
+    }
+
+    // I generate the database name ONCE outside the lambda
+    // This ensures every request in the same test sees the same database
+    private HttpClient CreateClient()
+    {
+        var dbName = "TestDb_" + Guid.NewGuid();
+
+        return _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                // I remove the real SQLite database connection
                 var descriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
                 if (descriptor != null)
                     services.Remove(descriptor);
 
-                // I replace it with an in-memory database for testing
                 services.AddDbContext<AppDbContext>(options =>
-                    options.UseInMemoryDatabase("TestDb"));
+                    options.UseInMemoryDatabase(dbName));
+
+                var bgDescriptors = services
+                    .Where(d => d.ImplementationType == typeof(ProcessTimeoutService))
+                    .ToList();
+                foreach (var d in bgDescriptors)
+                    services.Remove(d);
             });
         }).CreateClient();
     }
 
-    // I test that creating a process returns 201 Created
+    // ── TEST 1 ──────────────────────────────────────────────
     [Fact]
     public async Task CreateProcess_Returns201()
     {
-        var response = await _client.PostAsJsonAsync("/processes", new
-        {
-            name = "Test Process",
-            assignedTo = "Phetho Tlaka" 
-        });
+        var client   = CreateClient();
+        var process  = new BusinessProcess { Name = "Test Process", AssignedTo = "Phetho" };
+        var response = await client.PostAsJsonAsync("/processes", process);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    // I test that the created process has PENDING status by default
+    // ── TEST 2 ──────────────────────────────────────────────
     [Fact]
     public async Task CreateProcess_DefaultStatusIsPending()
     {
-        var response = await _client.PostAsJsonAsync("/processes", new
-        {
-            name = "Test Process",
-            assignedTo = "Phetho Tlaka"
-        });
-        var process = await response.Content.ReadFromJsonAsync<BusinessProcess>();
-        Assert.Equal("PENDING", process!.Status);
+        var client   = CreateClient();
+        var process  = new BusinessProcess { Name = "Status Test", AssignedTo = "Phetho" };
+        var response = await client.PostAsJsonAsync("/processes", process);
+        var created  = await response.Content.ReadFromJsonAsync<BusinessProcess>();
+        Assert.Equal("PENDING", created?.Status);
     }
 
-    // I test that getting all processes returns 200 OK
+    // ── TEST 3 ──────────────────────────────────────────────
     [Fact]
     public async Task GetProcesses_Returns200()
     {
-        var response = await _client.GetAsync("/processes");
+        var client   = CreateClient();
+        var response = await client.GetAsync("/processes");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // I test that getting a non-existent process returns 404
+    // ── TEST 4 ──────────────────────────────────────────────
     [Fact]
     public async Task GetProcess_NotFound_Returns404()
     {
-        var response = await _client.GetAsync("/processes/9999");
+        var client   = CreateClient();
+        var response = await client.GetAsync("/processes/99999");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // I test that updating a process status works correctly
+    // ── TEST 5 ──────────────────────────────────────────────
     [Fact]
     public async Task UpdateProcess_StatusChanges()
     {
-        var create = await _client.PostAsJsonAsync("/processes", new
-        {
-            name = "Update Test",
-            assignedTo = "Phetho Tlaka"
-        });
-        var created = await create.Content.ReadFromJsonAsync<BusinessProcess>();
+        var client  = CreateClient();
 
-        var response = await _client.PutAsJsonAsync($"/processes/{created!.Id}", new
-        {
-            name = "Update Test",
-            status = "COMPLETED",
-            assignedTo = "Phetho Tlaka"
-        });
+        var created = await client.PostAsJsonAsync("/processes",
+            new BusinessProcess { Name = "Update Test", AssignedTo = "Phetho" });
+        var process = await created.Content.ReadFromJsonAsync<BusinessProcess>();
+        Assert.NotNull(process);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var updated = await response.Content.ReadFromJsonAsync<BusinessProcess>();
-        Assert.Equal("COMPLETED", updated!.Status);
+        process.Status = "IN_PROGRESS";
+        var updated = await client.PutAsJsonAsync($"/processes/{process.Id}", process);
+        var result  = await updated.Content.ReadFromJsonAsync<BusinessProcess>();
+
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal("IN_PROGRESS", result?.Status);
     }
 
-    // I test that deleting a process returns 204 No Content
+    // ── TEST 6 ──────────────────────────────────────────────
     [Fact]
     public async Task DeleteProcess_Returns204()
     {
-        var create = await _client.PostAsJsonAsync("/processes", new
-        {
-            name = "Delete Test",
-            assignedTo = "Phetho Tlaka"
-        });
-        var created = await create.Content.ReadFromJsonAsync<BusinessProcess>();
+        var client  = CreateClient();
 
-        var response = await _client.DeleteAsync($"/processes/{created!.Id}");
+        var created  = await client.PostAsJsonAsync("/processes",
+            new BusinessProcess { Name = "Delete Test", AssignedTo = "Phetho" });
+        var process  = await created.Content.ReadFromJsonAsync<BusinessProcess>();
+        Assert.NotNull(process);
+
+        var response = await client.DeleteAsync($"/processes/{process.Id}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    // ── TEST 7 ──────────────────────────────────────────────
+    [Fact]
+    public async Task HealthCheck_ReturnsHealthy()
+    {
+        var client   = CreateClient();
+        var response = await client.GetAsync("/health");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // ── TEST 8 ──────────────────────────────────────────────
+    [Fact]
+    public async Task CreateProcess_EmptyName_Returns400()
+    {
+        var client   = CreateClient();
+        var process  = new BusinessProcess { Name = "", AssignedTo = "Phetho" };
+        var response = await client.PostAsJsonAsync("/processes", process);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // ── TEST 9 ──────────────────────────────────────────────
+    [Fact]
+    public async Task GetStats_Returns200()
+    {
+        var client   = CreateClient();
+        var response = await client.GetAsync("/stats");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // ── TEST 10 ─────────────────────────────────────────────
+    [Fact]
+    public async Task GetAuditLog_AfterUpdate_ReturnsLogs()
+    {
+        var client  = CreateClient();
+
+        var created = await client.PostAsJsonAsync("/processes",
+            new BusinessProcess { Name = "Audit Test", AssignedTo = "Phetho" });
+        var process = await created.Content.ReadFromJsonAsync<BusinessProcess>();
+        Assert.NotNull(process);
+
+        process.Status = "COMPLETED";
+        await client.PutAsJsonAsync($"/processes/{process.Id}", process);
+
+        var auditResponse = await client.GetAsync($"/processes/{process.Id}/audit");
+        Assert.Equal(HttpStatusCode.OK, auditResponse.StatusCode);
+    }
+
+    // ── TEST 11 ─────────────────────────────────────────────
+    [Fact]
+    public async Task UpdateProcess_InvalidStatus_Returns400()
+    {
+        var client  = CreateClient();
+
+        var created = await client.PostAsJsonAsync("/processes",
+            new BusinessProcess { Name = "Invalid Status Test", AssignedTo = "Phetho" });
+        var process = await created.Content.ReadFromJsonAsync<BusinessProcess>();
+        Assert.NotNull(process);
+
+        process.Status = "INVALID_STATUS";
+        var response = await client.PutAsJsonAsync($"/processes/{process.Id}", process);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    // ── TEST 12 ─────────────────────────────────────────────
+    [Fact]
+    public async Task ExportProcesses_Returns200()
+    {
+        var client   = CreateClient();
+        var response = await client.PostAsync("/processes/export", null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }

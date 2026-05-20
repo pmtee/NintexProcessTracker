@@ -1,0 +1,23 @@
+# I exclude build artifacts — Docker builds from source
+**/bin/
+**/obj/
+
+# I exclude the database files — data is persisted via volumes
+*.db
+*.db-shm
+*.db-wal
+
+# I exclude git and IDE files
+.git/
+.gitignore
+.vs/
+*.user
+
+# I exclude the test project — not needed in the production image
+**/ProcessTracker.Tests/
+
+# I exclude documentation and config files not needed at runtime
+README.md
+docker-compose.yml
+k8s/
+prometheus.yml

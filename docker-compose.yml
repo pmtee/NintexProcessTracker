@@ -1,0 +1,82 @@
+version: '3.9'
+
+# I define the full ProcessTracker stack
+# Run with: docker-compose up --build
+# Stop with: docker-compose down
+
+services:
+
+  # ── ProcessTracker API ─────────────────────────────────────
+  processtracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: processtracker-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # I inject AWS credentials from your local .env file
+      # Create a .env file with: AWS_ACCESS_KEY_ID=your-key
+      - AWS__Region=af-south-1
+      - AWS__BucketName=process-tracker-exports
+      - AWS__AccessKeyId=${AWS_ACCESS_KEY_ID:-}
+      - AWS__SecretAccessKey=${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      # I persist the SQLite database outside the container
+      # Data survives container restarts
+      - processdb:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - tracker-net
+    depends_on: []
+
+  # ── Prometheus ─────────────────────────────────────────────
+  # I scrape metrics from the API every 15 seconds
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    restart: unless-stopped
+    networks:
+      - tracker-net
+
+  # ── Grafana ────────────────────────────────────────────────
+  # I visualise the Prometheus metrics in dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafanadata:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - tracker-net
+
+volumes:
+  processdb:
+    name: processtracker-db
+  grafanadata:
+    name: processtracker-grafana
+
+networks:
+  tracker-net:
+    name: processtracker-network
+    driver: bridge
